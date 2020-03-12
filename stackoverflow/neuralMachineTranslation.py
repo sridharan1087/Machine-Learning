@@ -3,6 +3,9 @@ import cProfile
 import numpy as np
 import json 
 import pickle
+from keras.models import Sequential
+from keras.layers.core import Dense,Dropout,Activation
+from keras.layers import LSTM
 
 class readingAndIndexingCharacters(object):
     
@@ -101,14 +104,29 @@ class readingAndIndexingCharacters(object):
             for t,char in enumerate(target):
                 targets[i,t,TargetjsonData[char]]=1
                 
-                
-    def modelArch(self):
-        pass
+        print(f'Input-shape: {inputs.shape}')    
+        print(f'Target-shape: {targets.shape}')
+        return({'input':inputs,'target':targets}) 
+       
+    def modelArch(self,x,y):
+        try:
+            model =Sequential()
+            model.add(LSTM(30,input_shape=(5,22)))
+            model.add(Dense(35,activation="softmax"))
+            
+            model.compile('Adam',loss="categorical_crossentropy",metrics=['accuracy'])
+            model.fit(x,y)
+            
+            
+        except Exception as e:
+            print(f'Exception in model Architecture: {e}')
                 
     
 if __name__=='__main__':
         obj = readingAndIndexingCharacters()
         #obj.indexingCharacters()
-        obj.trainingData()
+        trainTestData = obj.trainingData()
+        obj.modelArch(trainTestData['input'], trainTestData['target'])
+        
         
         
