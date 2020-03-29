@@ -12,7 +12,6 @@ def loss_fn(tp,t_c):
     square_mean_error = (tp-t_c)**2
     return square_mean_error.mean()
 
-
 params = torch.tensor([1.0,1.0,1.0],requires_grad=True)
 learning_rate = 1e-4
 optimizer = optim.SGD([params],learning_rate)  
