@@ -17,7 +17,7 @@ learning_rate = 1e-4
 optimizer = optim.SGD([params],learning_rate)  
 
 def training_loop(n_epochs,t_c,t_u,params):
-    for i in range(n_epochs):
+    for _ in range(n_epochs):
         loss = loss_fn(model(t_u,*params),t_c)
         loss.backward()
         print(loss)
