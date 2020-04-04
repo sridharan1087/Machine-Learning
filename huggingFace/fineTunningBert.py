@@ -81,7 +81,7 @@ class fine_tune():
         
 if __name__=='__main__':
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-    df = pd.read_csv(r'C:\Users\ajay\Documents\GitHub\Machine-Learning\huggingFace\glue_data\SST-2\dev.tsv',
+    df = pd.read_csv(r'huggingFace\glue_data\SST-2\dev.tsv',
                      delimiter='\t')
     obj = CustomSet(df['sentence'],df['label'],tokenizer,30)
     j = DataLoader(obj,batch_size=1,num_workers=2)
