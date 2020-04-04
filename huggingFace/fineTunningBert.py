@@ -1,99 +1,92 @@
 import torch
-import tensorflow as tf
-import pandas as pd
-from transformers import BertTokenizer
-from transformers.modeling_bert import BertModel
-
-
-class SstDataSet(object):
-    def __init__(self,fileName,maxLen):
-        self.df = pd.read_csv(fileName,delimiter='\t')
-        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        
-        self.maxLen = maxLen
-        
-        
-    def __getitem__(self,index):
-        try:
-            sentence = self.df.loc[index,'sentence']
-            label = self.df.loc[index,'label']
-            
-            tokenizedText = self.tokenizer.tokenize(sentence)  # For Indexing of the words
-            print(f'Tokenized Text',tokenizedText)
-            
-            tokenizedText = ['[cls]']+tokenizedText+['[sep]']
-            
-            if len(tokenizedText) < self.maxLen:
-                tokenizedText += ['[PAD]' for _ in range(self.maxLen-len(tokenizedText))]
-                
-            else:
-                tokenizedText = tokenizedText[:self.maxLen]+['[SEP]']
-                
-            tokens = self.tokenizer.convert_tokens_to_ids(tokenizedText)
-            tokenIds = torch.tensor(tokens)
-            
-            attn_mask = (tokenIds != 0).long()
-            
-            return tokenIds,attn_mask, label           
-            
-        except Exception as e:
-            print('Exception in __Getitem__',e)
-            
-            
-
-
-from torch.utils.data import DataLoader
-val_set = SstDataSet(r'glue_data\SST-2\dev.tsv',maxLen=30)
-train_set = SstDataSet(r'glue_data\SST-2\train.tsv',maxLen=30)
-
-
-train_loader = DataLoader(train_set, batch_size = 64, num_workers = 5)
-val_loader = DataLoader(val_set, batch_size = 64, num_workers = 5)
- 
-
 import torch.nn as nn
+import pandas as pd
+from torch.utils.data import Dataset
+from torch.utils.data import DataLoader
+from transformers.tokenization_bert import BertTokenizer
+from transformers import BertForSequenceClassification, AdamW, BertConfig
+import torch.optim as optim
 
-class SentimentClassifier(nn.Module):
-    def __init__(self,freeze_bert=True):
-        super(SentimentClassifier,self).__init__()
-        self.bert_layer = BertModel.from_pretrained('bert-base-uncased')
+class CustomSet(Dataset):
+    def __init__(self,sentence,label,tokenizer,maxlen):
+        self.sentence = sentence
+        self.label = label
+        self.tokenizer = tokenizer
+        self.maxLen = maxlen
         
-        if freeze_bert:
-            for p in self.bert_layer.parameters():
-                p.requires_grad=False
+      
+    def __len__(self):
+        return len(self.sentence) 
+    
+    def __getitem__(self, index):
+        t = self.tokenizer.encode_plus(self.sentence[index],
+                                       max_length=self.maxLen,
+                                       pad_to_max_length=True) 
+        
+        
+        return {'input_ids':torch.tensor(t['input_ids']),
+                'attn_mask':torch.tensor(t['attention_mask']),
+                'label': torch.tensor(self.label[index])}
+        
+        
+class sentimentAnalyzer(nn.Module):
+    def __init__(self,freeze_bert=True):
+        super(sentimentAnalyzer,self).__init__()
+        self.model = BertForSequenceClassification.from_pretrained('bert-base-uncased')
+        
+        
+        if freeze_bert == True:
+            for p in self.model.parameters():
+                p.requires_grad = False
+                
                 
         
-        self.cls_layer = nn.Linear(768,1)
-
-    def forward(self,seq, attn_masks):
-        cont_reps, _ = self.bert_layer(seq, attention_mask = attn_masks)
-        cls_rep = cont_reps[:, 0]
-        logits = self.cls_layer(cls_rep)
+        self.cls_layer = nn.Linear(1, 1)
         
+        
+    def forward(self,seq,attn_masks):
+        cont_reps = self.model(seq, attention_mask = attn_masks)
+        cls_rep = cont_reps[0][:, 0]
+        logits = self.cls_layer(cls_rep)
         return logits
     
     
-
-
-net = SentimentClassifier(freeze_bert=True)
-import torch.optim as optim
-
-
-loss_fn = nn.BCEWithLogitsLoss()
-optimizer = optim.Adam(net.parameters(),lr = 1e-04)
-
-def training(epochs,loss_fn,optimizer,train_loader,val_loader):
-    for i in range(epochs):
-        for it, (seq,attn_mask,label) in enumerate(train_loader):
-            optimizer.zero_grad()
-            model = net(seq,attn_mask)
-            loss = loss_fn(model.squeeze(-1),label)
-            loss.backward()
-            optimizer.step()
-            print('Epoch1')
+    
+class fine_tune():
+    def __init__(self):
+        self.optimizer = optim.Adam(net.parameters(),lr=2e-05)
+        self.loss_fn = nn.BCEWithLogitsLoss()
+        
+    def training(self,n_epochs,j,net):
+        for _ in range(n_epochs):
+            for i in j:
+                input_ids = i['input_ids']
+                attn_mask = i['attn_mask']
+                label = i['label']
+                self.optimizer.zero_grad()
+                tp = net(input_ids,attn_mask)
+                print(tp)
+                loss = self.loss_fn(tp.unsqueeze(1),label.float().unsqueeze(1))
+                loss.backward()
+                self.optimizer.step()
             
+            print('epoch',_,loss)                 
             
-            
-training(1, loss_fn, optimizer, train_loader, val_loader)
+        
+    
+    
+
         
         
+        
+if __name__=='__main__':
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    df = pd.read_csv(r'C:\Users\ajay\Documents\GitHub\Machine-Learning\huggingFace\glue_data\SST-2\dev.tsv',
+                     delimiter='\t')
+    obj = CustomSet(df['sentence'],df['label'],tokenizer,30)
+    j = DataLoader(obj,batch_size=1,num_workers=2)
+    net = sentimentAnalyzer(freeze_bert=True)
+    obj1 = fine_tune()
+    obj1.training(5, j,net)
+    
+    
